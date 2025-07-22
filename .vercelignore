@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+server/node_modules/
+client/node_modules/
+
+# Logs
+*.log
+logs/
+
+# Development files
+.env
+.env.local
+.env.development
+server/.env
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+client/build/
+server/dist/
+
+# Cache
+.cache/
+.npm/
+.yarn/ 
