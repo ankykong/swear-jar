@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   MagnifyingGlassIcon,
-  FunnelIcon,
-  ClockIcon,
-  CurrencyDollarIcon
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import api from '../services/api';

@@ -58,18 +58,18 @@ const BankAccountsPage = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'verified':
-        return 'text-success-600';
-      case 'pending':
-        return 'text-warning-600';
-      case 'failed':
-        return 'text-danger-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
+  // const getStatusColor = (status) => {
+  //   switch (status) {
+  //     case 'verified':
+  //       return 'text-success-600';
+  //     case 'pending':
+  //       return 'text-warning-600';
+  //     case 'failed':
+  //       return 'text-danger-600';
+  //     default:
+  //       return 'text-gray-600';
+  //   }
+  // };
 
   if (isLoading) {
     return (

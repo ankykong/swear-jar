@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -17,16 +17,10 @@ const SwearJarDetailPage = () => {
   const [swearJar, setSwearJar] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showDepositModal, setShowDepositModal] = useState(false);
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  // const [showDepositModal, setShowDepositModal] = useState(false);
+  // const [showWithdrawModal, setShowWithdrawModal] = useState(false);
 
-  useEffect(() => {
-    if (id) {
-      loadSwearJarData();
-    }
-  }, [id]);
-
-  const loadSwearJarData = async () => {
+  const loadSwearJarData = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await api.swearJars.getById(id);
@@ -39,7 +33,13 @@ const SwearJarDetailPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      loadSwearJarData();
+    }
+  }, [id, loadSwearJarData]);
 
   if (isLoading) {
     return (
