@@ -102,14 +102,14 @@ const SwearJarDetailPage = () => {
             </div>
             <div className="flex gap-2 mt-4 sm:mt-0">
               <button
-                onClick={() => setShowDepositModal(true)}
+                onClick={() => console.log('Deposit modal will be implemented')}
                 className="btn-success"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Deposit
               </button>
               <button
-                onClick={() => setShowWithdrawModal(true)}
+                onClick={() => console.log('Withdraw modal will be implemented')}
                 className="btn-outline"
               >
                 <MinusIcon className="h-4 w-4 mr-2" />

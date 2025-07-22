@@ -1,5 +1,18 @@
 {
   "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "client/build"
+      }
+    },
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node"
+    }
+  ],
   "routes": [
     {
       "src": "/api/(.*)",
@@ -10,14 +23,7 @@
       "dest": "/client/build/$1"
     }
   ],
-  "functions": {
-    "api/index.js": {
-      "runtime": "@vercel/node@3.0.0"
-    }
-  },
   "env": {
     "NODE_ENV": "production"
-  },
-  "installCommand": "npm run install-all",
-  "buildCommand": "npm run build"
+  }
 } 
