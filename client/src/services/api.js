@@ -135,6 +135,7 @@ class ApiService {
       const { data: { user } } = await this.supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Create the jar first
       const result = await this.supabase
         .from('swear_jars')
         .insert([{
@@ -146,6 +147,30 @@ class ApiService {
         }])
         .select()
         .single();
+
+      if (result.error) {
+        return this.handleResponse(result);
+      }
+
+      // Create the owner membership record
+      const membershipResult = await this.supabase
+        .from('swear_jar_members')
+        .insert([{
+          swear_jar_id: result.data.id,
+          user_id: user.id,
+          role: 'owner',
+          permissions: {
+            canDeposit: true,
+            canWithdraw: true,
+            canInvite: true,
+            canViewTransactions: true
+          }
+        }]);
+
+      if (membershipResult.error) {
+        console.error('Failed to create owner membership:', membershipResult.error);
+        // Don't fail the whole operation, just log the error
+      }
 
       return this.handleResponse(result);
     },
