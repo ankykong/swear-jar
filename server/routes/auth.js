@@ -1,40 +1,35 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
-const { auth } = require('../middleware/auth');
+const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// Generate JWT token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d',
-  });
-};
-
 // @route   POST /api/auth/register
-// @desc    Register a new user
+// @desc    Register user
 // @access  Public
 router.post('/register', [
   body('name')
     .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Name must be between 1 and 50 characters'),
   body('email')
     .isEmail()
     .normalizeEmail()
-    .withMessage('Please provide a valid email'),
+    .withMessage('Please enter a valid email'),
   body('password')
     .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long'),
+    .withMessage('Password must be at least 6 characters')
 ], async (req, res) => {
   try {
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
-        message: 'Validation errors',
+        success: false,
+        message: 'Validation failed',
         errors: errors.array()
       });
     }
@@ -42,41 +37,56 @@ router.post('/register', [
     const { name, email, password } = req.body;
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findByEmail(email);
     if (existingUser) {
       return res.status(400).json({
-        message: 'User already exists with this email'
+        success: false,
+        message: 'User with this email already exists'
       });
     }
 
     // Create new user
-    const user = new User({
-      name,
-      email,
+    const user = await User.create({
+      name: name.trim(),
+      email: email.toLowerCase(),
       password
     });
 
-    await user.save();
+    // Generate JWT token
+    const payload = {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      }
+    };
 
-    // Generate token
-    const token = generateToken(user._id);
+    const token = jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    );
 
     res.status(201).json({
+      success: true,
       message: 'User registered successfully',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        createdAt: user.createdAt
-      }
+      user: user.toJSON()
     });
+
   } catch (error) {
     console.error('Registration error:', error);
+    
+    if (error.message === 'Email already exists') {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     res.status(500).json({
-      message: 'Server error during registration',
-      error: process.env.NODE_ENV === 'development' ? error.message : {}
+      success: false,
+      message: 'Server error during registration'
     });
   }
 });
@@ -88,110 +98,100 @@ router.post('/login', [
   body('email')
     .isEmail()
     .normalizeEmail()
-    .withMessage('Please provide a valid email'),
+    .withMessage('Please enter a valid email'),
   body('password')
     .exists()
-    .withMessage('Password is required'),
+    .withMessage('Password is required')
 ], async (req, res) => {
   try {
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
-        message: 'Validation errors',
+        success: false,
+        message: 'Validation failed',
         errors: errors.array()
       });
     }
 
     const { email, password } = req.body;
 
-    // Find user and include password for comparison
-    const user = await User.findOne({ email }).select('+password');
+    // Find user with password
+    const user = await User.findByEmailWithPassword(email);
     if (!user) {
-      return res.status(401).json({
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Check if account is active
-    if (!user.isActive) {
-      return res.status(401).json({
-        message: 'Account is deactivated. Please contact support.'
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid credentials'
       });
     }
 
     // Check password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        message: 'Invalid email or password'
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid credentials'
       });
     }
 
     // Update last login
-    user.lastLogin = Date.now();
-    await user.save();
+    await user.updateLastLogin();
 
-    // Generate token
-    const token = generateToken(user._id);
+    // Generate JWT token
+    const payload = {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      }
+    };
+
+    const token = jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    );
 
     res.json({
+      success: true,
       message: 'Login successful',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        lastLogin: user.lastLogin
-      }
+      user: user.toJSON()
     });
+
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({
-      message: 'Server error during login',
-      error: process.env.NODE_ENV === 'development' ? error.message : {}
+      success: false,
+      message: 'Server error during login'
     });
   }
 });
 
 // @route   GET /api/auth/me
-// @desc    Get current user profile
+// @desc    Get current user
 // @access  Private
 router.get('/me', auth, async (req, res) => {
   try {
-    // Get user with populated swear jars
-    const user = await User.findById(req.user.id)
-      .populate({
-        path: 'swearJars.jar',
-        select: 'name description balance currency createdAt'
-      })
-      .populate({
-        path: 'bankAccounts',
-        select: 'institutionName accountName accountType mask balance isActive'
-      });
-
+    const user = await User.findById(req.user.id);
+    
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
     res.json({
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        swearJars: user.swearJars,
-        bankAccounts: user.bankAccounts,
-        lastLogin: user.lastLogin,
-        createdAt: user.createdAt
-      }
+      success: true,
+      user: user.toJSON()
     });
+
   } catch (error) {
-    console.error('Get profile error:', error);
+    console.error('Get user error:', error);
     res.status(500).json({
-      message: 'Server error fetching profile',
-      error: process.env.NODE_ENV === 'development' ? error.message : {}
+      success: false,
+      message: 'Server error'
     });
   }
 });
@@ -204,90 +204,91 @@ router.put('/profile', [
   body('name')
     .optional()
     .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Name must be between 1 and 50 characters'),
   body('email')
     .optional()
     .isEmail()
     .normalizeEmail()
-    .withMessage('Please provide a valid email'),
+    .withMessage('Please enter a valid email'),
   body('avatar')
     .optional()
     .isURL()
-    .withMessage('Avatar must be a valid URL'),
+    .withMessage('Avatar must be a valid URL')
 ], async (req, res) => {
   try {
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
-        message: 'Validation errors',
+        success: false,
+        message: 'Validation failed',
         errors: errors.array()
       });
     }
 
-    const updates = {};
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
     const { name, email, avatar } = req.body;
 
-    if (name) updates.name = name;
-    if (email) {
-      // Check if email is already taken by another user
-      const existingUser = await User.findOne({ 
-        email, 
-        _id: { $ne: req.user.id } 
-      });
+    // Check if email is being changed and if it's already taken
+    if (email && email !== user.email) {
+      const existingUser = await User.findByEmail(email);
       if (existingUser) {
         return res.status(400).json({
-          message: 'Email is already taken by another user'
+          success: false,
+          message: 'Email is already taken'
         });
       }
-      updates.email = email;
+      user.email = email;
     }
-    if (avatar !== undefined) updates.avatar = avatar;
 
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      updates,
-      { new: true, runValidators: true }
-    );
+    // Update user fields
+    if (name !== undefined) user.name = name.trim();
+    if (avatar !== undefined) user.avatar = avatar;
+
+    await user.save();
 
     res.json({
+      success: true,
       message: 'Profile updated successfully',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        updatedAt: user.updatedAt
-      }
+      user: user.toJSON()
     });
+
   } catch (error) {
-    console.error('Update profile error:', error);
+    console.error('Profile update error:', error);
     res.status(500).json({
-      message: 'Server error updating profile',
-      error: process.env.NODE_ENV === 'development' ? error.message : {}
+      success: false,
+      message: 'Server error during profile update'
     });
   }
 });
 
-// @route   PUT /api/auth/change-password
+// @route   PUT /api/auth/password
 // @desc    Change user password
 // @access  Private
-router.put('/change-password', [
+router.put('/password', [
   auth,
   body('currentPassword')
     .exists()
     .withMessage('Current password is required'),
   body('newPassword')
     .isLength({ min: 6 })
-    .withMessage('New password must be at least 6 characters long'),
+    .withMessage('New password must be at least 6 characters')
 ], async (req, res) => {
   try {
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
-        message: 'Validation errors',
+        success: false,
+        message: 'Validation failed',
         errors: errors.array()
       });
     }
@@ -295,31 +296,36 @@ router.put('/change-password', [
     const { currentPassword, newPassword } = req.body;
 
     // Get user with password
-    const user = await User.findById(req.user.id).select('+password');
+    const user = await User.findByEmailWithPassword(req.user.email);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
     // Verify current password
-    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
-    if (!isCurrentPasswordValid) {
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
       return res.status(400).json({
+        success: false,
         message: 'Current password is incorrect'
       });
     }
 
     // Update password
-    user.password = newPassword;
-    await user.save();
+    await user.updatePassword(newPassword);
 
     res.json({
-      message: 'Password changed successfully'
+      success: true,
+      message: 'Password updated successfully'
     });
+
   } catch (error) {
-    console.error('Change password error:', error);
+    console.error('Password change error:', error);
     res.status(500).json({
-      message: 'Server error changing password',
-      error: process.env.NODE_ENV === 'development' ? error.message : {}
+      success: false,
+      message: 'Server error during password change'
     });
   }
 });
@@ -329,30 +335,86 @@ router.put('/change-password', [
 // @access  Private
 router.post('/refresh', auth, async (req, res) => {
   try {
-    // Generate new token
-    const token = generateToken(req.user.id);
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Generate new JWT token
+    const payload = {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      }
+    };
+
+    const token = jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    );
 
     res.json({
+      success: true,
       message: 'Token refreshed successfully',
-      token
+      token,
+      user: user.toJSON()
     });
+
   } catch (error) {
     console.error('Token refresh error:', error);
     res.status(500).json({
-      message: 'Server error refreshing token',
-      error: process.env.NODE_ENV === 'development' ? error.message : {}
+      success: false,
+      message: 'Server error during token refresh'
+    });
+  }
+});
+
+// @route   DELETE /api/auth/account
+// @desc    Delete user account (soft delete)
+// @access  Private
+router.delete('/account', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Soft delete user
+    await user.softDelete();
+
+    res.json({
+      success: true,
+      message: 'Account deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Account deletion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during account deletion'
     });
   }
 });
 
 // @route   POST /api/auth/logout
-// @desc    Logout user (client-side token removal)
+// @desc    Logout user (client-side token deletion)
 // @access  Private
 router.post('/logout', auth, (req, res) => {
-  // In a JWT system, logout is typically handled client-side by removing the token
-  // Here we just confirm the logout
+  // Since JWTs are stateless, logout is handled client-side
+  // This endpoint exists for consistency and potential future server-side session management
   res.json({
-    message: 'Logged out successfully'
+    success: true,
+    message: 'Logout successful'
   });
 });
 

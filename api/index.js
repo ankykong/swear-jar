@@ -1,8 +1,8 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { supabase, testConnection } = require('../server/config/supabase');
 
 // Import routes
 const authRoutes = require('../server/routes/auth');
@@ -42,35 +42,8 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Connect to MongoDB
-let cachedConnection = null;
-
-async function connectToDatabase() {
-  if (cachedConnection) {
-    return cachedConnection;
-  }
-
-  try {
-    const connection = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      bufferCommands: false,
-      bufferMaxEntries: 0,
-      useFindAndModify: false,
-      useCreateIndex: true
-    });
-    
-    cachedConnection = connection;
-    console.log('MongoDB connected successfully');
-    return connection;
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
-    throw error;
-  }
-}
-
-// Initialize database connection
-connectToDatabase().catch(console.error);
+// Initialize Supabase connection
+testConnection().catch(console.error);
 
 // Routes
 app.use('/api/auth', authRoutes);

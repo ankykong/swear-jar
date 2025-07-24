@@ -23,7 +23,7 @@ This project and everyone participating in it is governed by our [Code of Conduc
 - Node.js (v16 or higher)
 - npm or yarn
 - Git
-- MongoDB (local or Atlas)
+- Supabase account and project
 - Plaid Developer Account
 
 ### Fork the Repository
@@ -105,10 +105,12 @@ swearjar/
 │   │   ├── services/       # API services
 │   │   └── utils/          # Utility functions
 ├── server/                 # Local development backend
-│   ├── models/             # MongoDB schemas
+│   ├── models/             # Supabase database models
 │   ├── routes/             # API endpoints
 │   ├── middleware/         # Express middleware
 │   └── services/           # Business logic
+├── database/               # Database schema and migrations
+│   └── schema.sql          # Supabase database schema
 ├── docs/                   # Documentation
 └── .github/                # GitHub templates and workflows
 ```

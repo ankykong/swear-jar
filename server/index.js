@@ -1,8 +1,8 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { supabase, testConnection } = require('./config/supabase');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -32,10 +32,8 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/swearjar')
-.then(() => console.log('MongoDB connected successfully'))
-.catch((err) => console.error('MongoDB connection error:', err));
+// Initialize Supabase connection
+testConnection().catch(console.error);
 
 // Routes
 app.use('/api/auth', authRoutes);

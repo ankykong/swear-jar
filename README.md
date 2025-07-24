@@ -32,7 +32,7 @@ Turn your bad habits into good money! SwearJar is a modern fintech application t
 - **Vercel Deployment** - Optimized for serverless deployment
 - **RESTful API** - Well-structured API endpoints
 - **JWT Authentication** - Secure user authentication
-- **MongoDB Database** - Scalable NoSQL data storage
+- **Supabase Database** - Scalable PostgreSQL data storage with real-time features
 - **Input Validation** - Server-side and client-side validation
 - **Error Handling** - Comprehensive error management
 
@@ -40,7 +40,7 @@ Turn your bad habits into good money! SwearJar is a modern fintech application t
 
 ### Prerequisites
 - Node.js (v16 or higher)
-- MongoDB Atlas account (for database)
+- Supabase account (for database)
 - Plaid Developer Account (for bank integration)
 - Vercel account (for deployment)
 
@@ -63,7 +63,8 @@ Turn your bad habits into good money! SwearJar is a modern fintech application t
    ```
    
    Edit `.env.local` with your configuration:
-   - `MONGODB_URI` - Your MongoDB Atlas connection string
+   - `SUPABASE_URL` - Your Supabase project URL
+   - `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key
    - `JWT_SECRET` - A secure random string for JWT tokens
    - `PLAID_CLIENT_ID` - Your Plaid client ID
    - `PLAID_SECRET` - Your Plaid secret key
@@ -105,7 +106,8 @@ Turn your bad habits into good money! SwearJar is a modern fintech application t
    Go to your Vercel dashboard → Project → Settings → Environment Variables and add:
    
    ```env
-   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/swearjar
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
    JWT_SECRET=your-super-secure-jwt-secret
    JWT_EXPIRE=7d
    PLAID_CLIENT_ID=your-plaid-client-id
@@ -124,11 +126,11 @@ Turn your bad habits into good money! SwearJar is a modern fintech application t
 
 ### Environment Setup for Production
 
-#### MongoDB Atlas Setup
-1. Create a MongoDB Atlas account
-2. Create a new cluster
-3. Get your connection string
-4. Whitelist Vercel's IP addresses (or use 0.0.0.0/0 for all IPs)
+#### Supabase Setup
+1. Create a Supabase account at https://supabase.com
+2. Create a new project
+3. Get your project URL and service role key from Settings → API
+4. Run the SQL schema from `database/schema.sql` in the Supabase SQL editor
 
 #### Plaid Setup
 1. Create a Plaid account at https://dashboard.plaid.com/
@@ -158,10 +160,12 @@ swearjar/
 │   │   └── styles/        # CSS and styling
 │   └── public/            # Static assets
 ├── server/                # Node.js backend (for local dev)
-│   ├── models/            # MongoDB schemas
+│   ├── models/            # Supabase database models
 │   ├── routes/            # API endpoints
 │   ├── middleware/        # Express middleware
 │   └── services/          # Business logic services
+├── database/              # Database schema and migrations
+│   └── schema.sql         # Supabase database schema
 ├── vercel.json            # Vercel configuration
 ├── .vercelignore          # Files to ignore during deployment
 └── package.json           # Root package.json
@@ -171,7 +175,8 @@ swearjar/
 
 ### Required for Production
 ```env
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/swearjar
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 JWT_SECRET=your-super-secure-jwt-secret
 PLAID_CLIENT_ID=your-plaid-client-id
 PLAID_SECRET=your-plaid-secret
@@ -269,7 +274,7 @@ The API is available at `/api/*` when deployed to Vercel:
 
 **Backend:**
 - Node.js + Express.js
-- MongoDB + Mongoose
+- Supabase + PostgreSQL
 - JWT Authentication
 - Plaid API Integration
 - Vercel Serverless Functions
@@ -283,7 +288,7 @@ The API is available at `/api/*` when deployed to Vercel:
 
 **Deployment:**
 - Vercel (Frontend & API)
-- MongoDB Atlas (Database)
+- Supabase (Database)
 - Plaid (Banking Integration)
 
 ## 🔒 Security Features
@@ -322,9 +327,10 @@ The API is available at `/api/*` when deployed to Vercel:
 - Error tracking and logging
 
 ### Database Monitoring
-- MongoDB Atlas provides built-in monitoring
-- Performance insights and optimization suggestions
+- Supabase provides built-in monitoring and analytics
+- Real-time dashboard with performance metrics
 - Automated backups and point-in-time recovery
+- Built-in Row Level Security (RLS) for data protection
 
 ## 🤝 Contributing
 

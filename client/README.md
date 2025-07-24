@@ -16,7 +16,7 @@ A full-stack application that allows users to create virtual swear jars, invite 
 
 ### Backend
 - **Node.js** with Express.js
-- **MongoDB** with Mongoose ODM
+- **Supabase** with PostgreSQL database
 - **Plaid API** for bank connectivity
 - **JWT** for authentication
 - **bcryptjs** for password hashing
@@ -36,7 +36,7 @@ A full-stack application that allows users to create virtual swear jars, invite 
 Before running this application, make sure you have:
 
 - Node.js (v16 or higher)
-- MongoDB (local or cloud instance)
+- Supabase account and project
 - Plaid account and API keys
 - Git
 
@@ -68,7 +68,8 @@ Create a `.env` file in the `server` directory:
 # Server Configuration
 NODE_ENV=development
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/swearjar
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 JWT_SECRET=your-super-secret-jwt-key-here
 JWT_EXPIRE=7d
 
@@ -236,7 +237,8 @@ The application includes a comprehensive set of reusable components:
 ### Environment Variables for Production
 ```bash
 NODE_ENV=production
-MONGODB_URI=your-production-mongodb-uri
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-production-supabase-service-role-key
 JWT_SECRET=your-production-jwt-secret
 PLAID_ENV=production
 PLAID_CLIENT_ID=your-production-plaid-client-id
