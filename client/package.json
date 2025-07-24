@@ -1,13 +1,13 @@
 {
   "name": "swear-jar-client",
   "version": "1.0.0",
-  "description": "Frontend for swear jar application",
+  "description": "Frontend for swear jar application with Supabase integration",
   "private": true,
   "dependencies": {
+    "@supabase/supabase-js": "^2.38.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.8.1",
-    "axios": "^1.6.2",
     "react-plaid-link": "^3.4.0",
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.0.18",
