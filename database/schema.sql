@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(50) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
+    password VARCHAR(255), -- Optional: can use Supabase Auth instead
     avatar TEXT,
     is_active BOOLEAN DEFAULT true,
     last_login TIMESTAMPTZ DEFAULT NOW(),
@@ -158,36 +158,92 @@ ALTER TABLE swear_jar_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bank_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
--- Users can only see and modify their own data
-CREATE POLICY "Users can view own profile" ON users FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update own profile" ON users FOR UPDATE USING (auth.uid() = id);
+-- UPDATED: Users policies for Supabase Auth
+-- Users can see and modify their own data using auth.uid()
+CREATE POLICY "Users can view own profile" ON users 
+FOR SELECT USING (id = auth.uid());
 
--- Swear jar policies
-CREATE POLICY "Users can view swear jars they're members of" ON swear_jars FOR SELECT USING (
+CREATE POLICY "Users can update own profile" ON users 
+FOR UPDATE USING (id = auth.uid());
+
+CREATE POLICY "Users can insert own profile" ON users 
+FOR INSERT WITH CHECK (id = auth.uid());
+
+-- UPDATED: Swear jar policies for Supabase Auth
+CREATE POLICY "Users can view swear jars they're members of" ON swear_jars 
+FOR SELECT USING (
     EXISTS (
         SELECT 1 FROM swear_jar_members 
         WHERE swear_jar_id = id AND user_id = auth.uid()
     )
 );
 
-CREATE POLICY "Users can update swear jars they own" ON swear_jars FOR UPDATE USING (owner_id = auth.uid());
-CREATE POLICY "Users can create swear jars" ON swear_jars FOR INSERT WITH CHECK (owner_id = auth.uid());
+CREATE POLICY "Users can update swear jars they own" ON swear_jars 
+FOR UPDATE USING (owner_id = auth.uid());
 
--- Bank account policies
-CREATE POLICY "Users can view own bank accounts" ON bank_accounts FOR SELECT USING (user_id = auth.uid());
-CREATE POLICY "Users can manage own bank accounts" ON bank_accounts FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users can create swear jars" ON swear_jars 
+FOR INSERT WITH CHECK (owner_id = auth.uid());
 
--- Transaction policies
-CREATE POLICY "Users can view transactions for their swear jars" ON transactions FOR SELECT USING (
+-- UPDATED: Swear jar members policies
+CREATE POLICY "Users can view swear jar members for jars they belong to" ON swear_jar_members
+FOR SELECT USING (
+    EXISTS (
+        SELECT 1 FROM swear_jar_members sjm2
+        WHERE sjm2.swear_jar_id = swear_jar_members.swear_jar_id 
+        AND sjm2.user_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Jar owners can manage members" ON swear_jar_members
+FOR ALL USING (
+    EXISTS (
+        SELECT 1 FROM swear_jars 
+        WHERE id = swear_jar_id AND owner_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Users can leave jars they're members of" ON swear_jar_members
+FOR DELETE USING (user_id = auth.uid());
+
+-- UPDATED: Bank account policies for Supabase Auth
+CREATE POLICY "Users can view own bank accounts" ON bank_accounts 
+FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Users can manage own bank accounts" ON bank_accounts 
+FOR ALL USING (user_id = auth.uid());
+
+-- UPDATED: Transaction policies for Supabase Auth
+CREATE POLICY "Users can view transactions for their swear jars" ON transactions 
+FOR SELECT USING (
     EXISTS (
         SELECT 1 FROM swear_jar_members 
         WHERE swear_jar_id = transactions.swear_jar_id AND user_id = auth.uid()
     )
 );
 
-CREATE POLICY "Users can create transactions for their swear jars" ON transactions FOR INSERT WITH CHECK (
+CREATE POLICY "Users can create transactions for jars they belong to" ON transactions 
+FOR INSERT WITH CHECK (
     EXISTS (
         SELECT 1 FROM swear_jar_members 
         WHERE swear_jar_id = NEW.swear_jar_id AND user_id = auth.uid()
     )
-); 
+);
+
+CREATE POLICY "Users can update their own transactions" ON transactions 
+FOR UPDATE USING (user_id = auth.uid());
+
+-- OPTIONAL: If using custom user table with Supabase Auth
+-- Handle user creation/sync with Supabase Auth
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, email, name)
+  VALUES (new.id, new.email, COALESCE(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)));
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to create user record when someone signs up
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user(); 
