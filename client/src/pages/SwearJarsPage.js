@@ -9,6 +9,7 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
+import CreateSwearJarModal from '../components/UI/CreateSwearJarModal';
 import api from '../services/api';
 
 const SwearJarsPage = () => {
@@ -16,6 +17,7 @@ const SwearJarsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all'); // all, owned, member
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     loadSwearJars();
@@ -26,7 +28,7 @@ const SwearJarsPage = () => {
     try {
       const response = await api.swearJars.getAll();
       if (response.success) {
-        setSwearJars(response.data.swearJars || []);
+        setSwearJars(response.data || []);
       }
     } catch (error) {
       console.error('Error loading swear jars:', error);
@@ -35,12 +37,18 @@ const SwearJarsPage = () => {
     }
   };
 
+  const handleJarCreated = (newJar) => {
+    // Add the new jar to the list and reload
+    loadSwearJars();
+  };
+
   const filteredJars = swearJars.filter(jar => {
-    const matchesSearch = jar.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         jar.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const jarData = jar.swear_jars || jar; // Handle Supabase structure
+    const matchesSearch = jarData.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         jarData.description?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    if (filter === 'owned') return matchesSearch && jar.userRole === 'owner';
-    if (filter === 'member') return matchesSearch && jar.userRole === 'member';
+    if (filter === 'owned') return matchesSearch && jar.role === 'owner';
+    if (filter === 'member') return matchesSearch && jar.role === 'member';
     return matchesSearch;
   });
 
@@ -69,7 +77,10 @@ const SwearJarsPage = () => {
                 Manage your virtual swear jars and track your progress
               </p>
             </div>
-            <button className="btn-primary mt-4 sm:mt-0">
+            <button 
+              onClick={() => setShowCreateModal(true)}
+              className="btn-primary mt-4 sm:mt-0"
+            >
               <PlusIcon className="h-4 w-4 mr-2" />
               Create New Jar
             </button>
@@ -131,7 +142,10 @@ const SwearJarsPage = () => {
               }
             </p>
             {!searchTerm && (
-              <button className="btn-primary">
+              <button 
+                onClick={() => setShowCreateModal(true)}
+                className="btn-primary"
+              >
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Create Your First Jar
               </button>
@@ -144,65 +158,68 @@ const SwearJarsPage = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            {filteredJars.map((jar, index) => (
+            {filteredJars.map((jar, index) => {
+              const jarData = jar.swear_jars || jar;
+              return (
               <motion.div
-                key={jar._id}
+                key={jarData.id}
                 className="swear-jar-card group"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.1 * index }}
               >
-                <Link to={`/swear-jars/${jar._id}`} className="block">
+                <Link to={`/swear-jars/${jarData.id}`} className="block">
                   {/* Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
-                        {jar.name}
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                        {jar.description || 'No description'}
-                      </p>
+                                      <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+                          {jarData.name}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                          {jarData.description || 'No description'}
+                        </p>
+                      </div>
+                      <div className="ml-4">
+                        <span className={`badge-${jar.role === 'owner' ? 'primary' : 'gray'}`}>
+                          {jar.role}
+                        </span>
+                      </div>
                     </div>
-                    <div className="ml-4">
-                      <span className={`badge-${jar.userRole === 'owner' ? 'primary' : 'gray'}`}>
-                        {jar.userRole}
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* Balance */}
-                  <div className="mb-4">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {api.formatCurrency(jar.balance, jar.currency)}
+                    {/* Balance */}
+                    <div className="mb-4">
+                      <div className="text-2xl font-bold text-gray-900">
+                        {api.formatCurrency(jarData.balance, jarData.currency)}
+                      </div>
+                      <div className="text-sm text-gray-600">Current balance</div>
                     </div>
-                    <div className="text-sm text-gray-600">Current balance</div>
-                  </div>
 
-                  {/* Stats */}
-                  <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-                    <div className="flex items-center">
-                      <UsersIcon className="h-4 w-4 mr-1" />
-                      {jar.members?.length || 0} member(s)
+                    {/* Stats */}
+                    <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                      <div className="flex items-center">
+                        <UsersIcon className="h-4 w-4 mr-1" />
+                        {jarData.members?.length || 0} member(s)
+                      </div>
+                      <div className="text-xs">
+                        Created {api.formatRelativeTime(jarData.created_at)}
+                      </div>
                     </div>
-                    <div className="text-xs">
-                      Created {api.formatRelativeTime(jar.createdAt)}
-                    </div>
-                  </div>
 
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-4 border-t border-gray-200">
-                    <button className="flex-1 btn-outline text-xs py-2">
-                      Quick Deposit
-                    </button>
-                    {jar.userRole === 'owner' && (
-                      <button className="btn-secondary p-2">
-                        <Cog6ToothIcon className="h-4 w-4" />
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-4 border-t border-gray-200">
+                      <button className="flex-1 btn-outline text-xs py-2">
+                        Quick Deposit
                       </button>
-                    )}
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
+                      {jar.role === 'owner' && (
+                        <button className="btn-secondary p-2">
+                          <Cog6ToothIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </Link>
+                </motion.div>
+              );
+            })}
           </motion.div>
         )}
 
@@ -225,7 +242,10 @@ const SwearJarsPage = () => {
             <div className="stats-card">
               <div className="text-center">
                 <div className="text-2xl font-bold text-gray-900">
-                  {api.formatCurrency(filteredJars.reduce((sum, jar) => sum + jar.balance, 0))}
+                  {api.formatCurrency(filteredJars.reduce((sum, jar) => {
+                    const jarData = jar.swear_jars || jar;
+                    return sum + (jarData.balance || 0);
+                  }, 0))}
                 </div>
                 <div className="text-sm text-gray-600">Total Balance</div>
               </div>
@@ -233,13 +253,20 @@ const SwearJarsPage = () => {
             <div className="stats-card">
               <div className="text-center">
                 <div className="text-2xl font-bold text-gray-900">
-                  {filteredJars.filter(jar => jar.userRole === 'owner').length}
+                  {filteredJars.filter(jar => jar.role === 'owner').length}
                 </div>
                 <div className="text-sm text-gray-600">Owned by You</div>
               </div>
             </div>
           </motion.div>
         )}
+
+        {/* Create Swear Jar Modal */}
+        <CreateSwearJarModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onJarCreated={handleJarCreated}
+        />
       </div>
     </div>
   );

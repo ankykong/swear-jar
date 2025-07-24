@@ -8,12 +8,12 @@ import {
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
+import PlaidLinkButton from '../components/UI/PlaidLinkButton';
 import api from '../services/api';
 
 const BankAccountsPage = () => {
   const [bankAccounts, setBankAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [connectingAccount, setConnectingAccount] = useState(false);
 
   useEffect(() => {
     loadBankAccounts();
@@ -24,7 +24,7 @@ const BankAccountsPage = () => {
     try {
       const response = await api.plaid.getAccounts();
       if (response.success) {
-        setBankAccounts(response.data.accounts || []);
+        setBankAccounts(response.data || []);
       }
     } catch (error) {
       console.error('Error loading bank accounts:', error);
@@ -33,17 +33,9 @@ const BankAccountsPage = () => {
     }
   };
 
-  const handleConnectAccount = async () => {
-    setConnectingAccount(true);
-    try {
-      // This would integrate with Plaid Link
-      console.log('Starting Plaid Link flow...');
-      // For now, just show a placeholder
-    } catch (error) {
-      console.error('Error connecting account:', error);
-    } finally {
-      setConnectingAccount(false);
-    }
+  const handleAccountConnected = (newAccounts) => {
+    // Refresh the bank accounts list after successful connection
+    loadBankAccounts();
   };
 
   const getAccountIcon = (accountType) => {
@@ -96,18 +88,10 @@ const BankAccountsPage = () => {
                 Connect your bank accounts to easily transfer money to and from your swear jars
               </p>
             </div>
-            <button
-              onClick={handleConnectAccount}
-              disabled={connectingAccount}
-              className="btn-primary mt-4 sm:mt-0 disabled:opacity-50"
-            >
-              {connectingAccount ? (
-                <LoadingSpinner size="sm" className="mr-2" />
-              ) : (
-                <PlusIcon className="h-4 w-4 mr-2" />
-              )}
-              Connect Bank Account
-            </button>
+            <PlaidLinkButton
+              onSuccess={handleAccountConnected}
+              className="btn-primary mt-4 sm:mt-0"
+            />
           </div>
         </motion.div>
 
@@ -146,18 +130,13 @@ const BankAccountsPage = () => {
               Connect your bank account to easily transfer money to and from your swear jars. 
               Your information is protected by bank-level security.
             </p>
-            <button
-              onClick={handleConnectAccount}
-              disabled={connectingAccount}
-              className="btn-primary disabled:opacity-50"
+            <PlaidLinkButton
+              onSuccess={handleAccountConnected}
+              className="btn-primary"
             >
-              {connectingAccount ? (
-                <LoadingSpinner size="sm" className="mr-2" />
-              ) : (
-                <PlusIcon className="h-4 w-4 mr-2" />
-              )}
+              <PlusIcon className="h-4 w-4 mr-2" />
               Connect Your First Account
-            </button>
+            </PlaidLinkButton>
           </motion.div>
         ) : (
           <motion.div
@@ -178,11 +157,11 @@ const BankAccountsPage = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600">
-                      {getAccountIcon(account.accountType)}
+                      {getAccountIcon(account.account_type)}
                     </div>
                     <div className="ml-3">
-                      <h3 className="font-medium text-gray-900">{account.institutionName}</h3>
-                      <p className="text-sm text-gray-600">{account.displayName}</p>
+                      <h3 className="font-medium text-gray-900">{account.institution_name}</h3>
+                      <p className="text-sm text-gray-600">{account.account_name}</p>
                     </div>
                   </div>
                   <span className={`badge-${
@@ -194,28 +173,30 @@ const BankAccountsPage = () => {
                 </div>
 
                 {/* Account Details */}
-                <div className="space-y-3 mb-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Account Type</span>
-                    <span className="font-medium capitalize">{account.accountType}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Account Number</span>
-                    <span className="font-medium">****{account.mask}</span>
-                  </div>
-                  {account.balance && (
+                                  <div className="space-y-3 mb-4">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Available Balance</span>
-                      <span className="font-medium">{account.balance}</span>
+                      <span className="text-gray-600">Account Type</span>
+                      <span className="font-medium capitalize">{account.account_type}</span>
                     </div>
-                  )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Last Updated</span>
-                    <span className="font-medium">
-                      {account.lastSyncAt ? api.formatRelativeTime(account.lastSyncAt) : 'Never'}
-                    </span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Account Number</span>
+                      <span className="font-medium">****{account.mask}</span>
+                    </div>
+                    {account.balance && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Available Balance</span>
+                        <span className="font-medium">
+                          {api.formatCurrency(account.balance.available || account.balance.current || 0)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Last Updated</span>
+                      <span className="font-medium">
+                        {account.last_sync_at ? api.formatRelativeTime(account.last_sync_at) : 'Never'}
+                      </span>
+                    </div>
                   </div>
-                </div>
 
                 {/* Permissions */}
                 <div className="mb-4">
@@ -241,14 +222,14 @@ const BankAccountsPage = () => {
                 </div>
 
                 {/* Sync Errors */}
-                {account.syncErrors && account.syncErrors.length > 0 && (
+                {account.sync_errors && account.sync_errors.length > 0 && (
                   <div className="mt-3 p-3 bg-warning-50 border border-warning-200 rounded-lg">
                     <div className="flex items-start">
                       <ExclamationTriangleIcon className="h-4 w-4 text-warning-600 mt-0.5 mr-2" />
                       <div>
                         <p className="text-xs font-medium text-warning-900">Sync Issue</p>
                         <p className="text-xs text-warning-700">
-                          {account.syncErrors[0].error}
+                          {account.sync_errors[0].error || account.sync_errors[0]}
                         </p>
                       </div>
                     </div>
