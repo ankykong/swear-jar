@@ -1,89 +1,427 @@
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 
-// API service class for organized endpoint management
+// API service class for organized Supabase operations
 class ApiService {
   constructor() {
-    // Use relative URLs in production (Vercel), full URLs in development
-    this.baseURL = process.env.NODE_ENV === 'production' 
-      ? '/api'  // Relative URL for Vercel
-      : process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+    this.supabase = supabase;
   }
 
-  // Helper method to handle API responses
-  async request(method, url, data = null, config = {}) {
-    try {
-      const response = await axios({
-        method,
-        url: `${this.baseURL}${url}`,
-        data,
-        ...config,
-      });
-      return { success: true, data: response.data };
-    } catch (error) {
-      console.error(`API ${method.toUpperCase()} ${url} error:`, error);
+  // Helper method to handle responses consistently
+  handleResponse(result) {
+    if (result.error) {
+      console.error('Supabase error:', result.error);
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
-        status: error.response?.status,
+        error: result.error.message,
+        code: result.error.code,
       };
     }
+    return {
+      success: true,
+      data: result.data,
+    };
   }
 
   // Swear Jars API
   swearJars = {
-    getAll: () => this.request('GET', '/swear-jars'),
-    getById: (id) => this.request('GET', `/swear-jars/${id}`),
-    create: (data) => this.request('POST', '/swear-jars', data),
-    update: (id, data) => this.request('PUT', `/swear-jars/${id}`, data),
-    delete: (id) => this.request('DELETE', `/swear-jars/${id}`),
-    invite: (id, data) => this.request('POST', `/swear-jars/${id}/invite`, data),
-    removeMember: (jarId, userId) => this.request('DELETE', `/swear-jars/${jarId}/members/${userId}`),
-    updateMemberRole: (jarId, userId, data) => this.request('PUT', `/swear-jars/${jarId}/members/${userId}/role`, data),
-    getStats: (id, params = {}) => this.request('GET', `/swear-jars/${id}/stats`, null, { params }),
+    getAll: async () => {
+      const result = await this.supabase
+        .from('swear_jar_members')
+        .select(`
+          role,
+          joined_at,
+          permissions,
+          swear_jars (
+            id,
+            name,
+            description,
+            balance,
+            currency,
+            settings,
+            statistics,
+            created_at,
+            owner:users!owner_id(id, name, email, avatar)
+          )
+        `)
+        .order('joined_at', { ascending: false });
+      
+      return this.handleResponse(result);
+    },
+
+    getById: async (id) => {
+      const result = await this.supabase
+        .from('swear_jars')
+        .select(`
+          *,
+          owner:users!owner_id(id, name, email, avatar),
+          members:swear_jar_members(
+            role,
+            joined_at,
+            permissions,
+            users(id, name, email, avatar)
+          )
+        `)
+        .eq('id', id)
+        .single();
+      
+      return this.handleResponse(result);
+    },
+
+    create: async (data) => {
+      const { data: { user } } = await this.supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const result = await this.supabase
+        .from('swear_jars')
+        .insert([{
+          name: data.name,
+          description: data.description,
+          currency: data.currency || 'USD',
+          owner_id: user.id,
+          settings: data.settings || {}
+        }])
+        .select()
+        .single();
+
+      return this.handleResponse(result);
+    },
+
+    update: async (id, data) => {
+      const result = await this.supabase
+        .from('swear_jars')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      return this.handleResponse(result);
+    },
+
+    delete: async (id) => {
+      const result = await this.supabase
+        .from('swear_jars')
+        .update({ is_active: false })
+        .eq('id', id);
+      
+      return this.handleResponse(result);
+    },
+
+    invite: async (id, data) => {
+      const result = await this.supabase
+        .from('swear_jar_members')
+        .insert([{
+          swear_jar_id: id,
+          user_id: data.userId,
+          role: data.role || 'member',
+          permissions: data.permissions
+        }])
+        .select(`
+          *,
+          users(id, name, email, avatar)
+        `)
+        .single();
+
+      return this.handleResponse(result);
+    },
+
+    removeMember: async (jarId, userId) => {
+      const result = await this.supabase
+        .from('swear_jar_members')
+        .delete()
+        .eq('swear_jar_id', jarId)
+        .eq('user_id', userId);
+
+      return this.handleResponse(result);
+    },
+
+    updateMemberRole: async (jarId, userId, data) => {
+      const result = await this.supabase
+        .from('swear_jar_members')
+        .update({ role: data.role, permissions: data.permissions })
+        .eq('swear_jar_id', jarId)
+        .eq('user_id', userId)
+        .select(`
+          *,
+          users(id, name, email, avatar)
+        `)
+        .single();
+
+      return this.handleResponse(result);
+    },
+
+    getStats: async (id, params = {}) => {
+      // Get transaction statistics for the jar
+      const result = await this.supabase
+        .from('transactions')
+        .select('type, amount, created_at, status')
+        .eq('swear_jar_id', id)
+        .eq('status', 'completed');
+
+      if (result.error) return this.handleResponse(result);
+
+      // Calculate statistics
+      const transactions = result.data;
+      const stats = {
+        totalTransactions: transactions.length,
+        totalDeposits: transactions.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0),
+        totalWithdrawals: transactions.filter(t => t.type === 'withdrawal').reduce((sum, t) => sum + t.amount, 0),
+        totalPenalties: transactions.filter(t => t.type === 'penalty').reduce((sum, t) => sum + t.amount, 0),
+      };
+
+      return { success: true, data: stats };
+    },
   };
 
   // Transactions API
   transactions = {
-    getAll: (params = {}) => this.request('GET', '/transactions', null, { params }),
-    getById: (id) => this.request('GET', `/transactions/${id}`),
-    deposit: (data) => this.request('POST', '/transactions/deposit', data),
-    withdraw: (data) => this.request('POST', '/transactions/withdrawal', data),
-    penalty: (data) => this.request('POST', '/transactions/penalty', data),
-    approve: (id) => this.request('PUT', `/transactions/${id}/approve`),
-    cancel: (id) => this.request('PUT', `/transactions/${id}/cancel`),
+    getAll: async (params = {}) => {
+      let query = this.supabase
+        .from('transactions')
+        .select(`
+          *,
+          users(id, name, email, avatar),
+          swear_jars(id, name, currency),
+          bank_accounts(id, institution_name, account_name, mask)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (params.swearJarId) {
+        query = query.eq('swear_jar_id', params.swearJarId);
+      }
+
+      if (params.limit) {
+        query = query.limit(params.limit);
+      }
+
+      const result = await query;
+      return this.handleResponse(result);
+    },
+
+    getById: async (id) => {
+      const result = await this.supabase
+        .from('transactions')
+        .select(`
+          *,
+          users(id, name, email, avatar),
+          swear_jars(id, name, currency),
+          bank_accounts(id, institution_name, account_name, mask)
+        `)
+        .eq('id', id)
+        .single();
+
+      return this.handleResponse(result);
+    },
+
+    deposit: async (data) => {
+      // Call Edge Function for complex transaction logic
+      const result = await this.supabase.functions.invoke('transactions', {
+        body: { 
+          action: 'deposit',
+          ...data 
+        }
+      });
+
+      return this.handleResponse(result);
+    },
+
+    withdraw: async (data) => {
+      const result = await this.supabase.functions.invoke('transactions', {
+        body: { 
+          action: 'withdraw',
+          ...data 
+        }
+      });
+
+      return this.handleResponse(result);
+    },
+
+    penalty: async (data) => {
+      const result = await this.supabase.functions.invoke('transactions', {
+        body: { 
+          action: 'penalty',
+          ...data 
+        }
+      });
+
+      return this.handleResponse(result);
+    },
+
+    approve: async (id) => {
+      const result = await this.supabase
+        .from('transactions')
+        .update({ status: 'completed', processed_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      return this.handleResponse(result);
+    },
+
+    cancel: async (id) => {
+      const result = await this.supabase
+        .from('transactions')
+        .update({ status: 'cancelled', processed_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      return this.handleResponse(result);
+    },
   };
 
-  // Plaid API
+  // Plaid API (handled by Edge Functions)
   plaid = {
-    createLinkToken: (data = {}) => this.request('POST', '/plaid/link-token', data),
-    exchangeToken: (data) => this.request('POST', '/plaid/exchange-token', data),
-    getAccounts: () => this.request('GET', '/plaid/accounts'),
-    updateBalance: (id) => this.request('POST', `/plaid/accounts/${id}/update-balance`),
-    getTransactions: (id, params = {}) => this.request('GET', `/plaid/accounts/${id}/transactions`, null, { params }),
-    verifyAccount: (id, data) => this.request('POST', `/plaid/accounts/${id}/verify`, data),
-    disconnectAccount: (id) => this.request('DELETE', `/plaid/accounts/${id}`),
+    createLinkToken: async (data = {}) => {
+      const result = await this.supabase.functions.invoke('plaid', {
+        body: { 
+          action: 'createLinkToken',
+          ...data 
+        }
+      });
+
+      return this.handleResponse(result);
+    },
+
+    exchangeToken: async (data) => {
+      const result = await this.supabase.functions.invoke('plaid', {
+        body: { 
+          action: 'exchangeToken',
+          ...data 
+        }
+      });
+
+      return this.handleResponse(result);
+    },
+
+    getAccounts: async () => {
+      const result = await this.supabase
+        .from('bank_accounts')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      return this.handleResponse(result);
+    },
+
+    updateBalance: async (id) => {
+      const result = await this.supabase.functions.invoke('plaid', {
+        body: { 
+          action: 'updateBalance',
+          accountId: id 
+        }
+      });
+
+      return this.handleResponse(result);
+    },
+
+    getTransactions: async (id, params = {}) => {
+      const result = await this.supabase.functions.invoke('plaid', {
+        body: { 
+          action: 'getTransactions',
+          accountId: id,
+          ...params 
+        }
+      });
+
+      return this.handleResponse(result);
+    },
+
+    verifyAccount: async (id, data) => {
+      const result = await this.supabase.functions.invoke('plaid', {
+        body: { 
+          action: 'verifyAccount',
+          accountId: id,
+          ...data 
+        }
+      });
+
+      return this.handleResponse(result);
+    },
+
+    disconnectAccount: async (id) => {
+      const result = await this.supabase
+        .from('bank_accounts')
+        .update({ is_active: false })
+        .eq('id', id);
+
+      return this.handleResponse(result);
+    },
   };
 
   // Users API
   users = {
-    search: (params = {}) => this.request('GET', '/users/search', null, { params }),
-    getById: (id) => this.request('GET', `/users/${id}`),
-    getSwearJars: (id) => this.request('GET', `/users/${id}/swear-jars`),
-    getActivity: () => this.request('GET', '/users/me/activity'),
-    updateSettings: (data) => this.request('PUT', '/users/me/settings', data),
-    block: (id) => this.request('PUT', `/users/${id}/block`),
-    unblock: (id) => this.request('DELETE', `/users/${id}/block`),
-  };
+    search: async (params = {}) => {
+      let query = this.supabase
+        .from('users')
+        .select('id, name, email, avatar')
+        .eq('is_active', true);
 
-  // Auth API (for convenience, though handled in AuthContext)
-  auth = {
-    login: (data) => this.request('POST', '/auth/login', data),
-    register: (data) => this.request('POST', '/auth/register', data),
-    getProfile: () => this.request('GET', '/auth/me'),
-    updateProfile: (data) => this.request('PUT', '/auth/profile', data),
-    changePassword: (data) => this.request('PUT', '/auth/change-password', data),
-    refreshToken: () => this.request('POST', '/auth/refresh'),
-    logout: () => this.request('POST', '/auth/logout'),
+      if (params.email) {
+        query = query.ilike('email', `%${params.email}%`);
+      }
+
+      if (params.name) {
+        query = query.ilike('name', `%${params.name}%`);
+      }
+
+      const result = await query.limit(params.limit || 10);
+      return this.handleResponse(result);
+    },
+
+    getById: async (id) => {
+      const result = await this.supabase
+        .from('users')
+        .select('id, name, email, avatar, created_at')
+        .eq('id', id)
+        .single();
+
+      return this.handleResponse(result);
+    },
+
+    getSwearJars: async (id) => {
+      const result = await this.supabase
+        .from('swear_jar_members')
+        .select(`
+          role,
+          joined_at,
+          permissions,
+          swear_jars(*)
+        `)
+        .eq('user_id', id);
+
+      return this.handleResponse(result);
+    },
+
+    getActivity: async () => {
+      const { data: { user } } = await this.supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const result = await this.supabase
+        .from('transactions')
+        .select(`
+          *,
+          swear_jars(id, name)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      return this.handleResponse(result);
+    },
+
+    updateSettings: async (data) => {
+      const { data: { user } } = await this.supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const result = await this.supabase
+        .from('users')
+        .update(data)
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      return this.handleResponse(result);
+    },
   };
 
   // Utility methods
