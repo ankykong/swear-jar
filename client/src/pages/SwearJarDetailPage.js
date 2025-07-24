@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   ArrowLeftIcon,
   CurrencyDollarIcon,
@@ -14,6 +15,7 @@ import api from '../services/api';
 
 const SwearJarDetailPage = () => {
   const { id } = useParams();
+  const { user } = useAuth();
   const [swearJar, setSwearJar] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -25,8 +27,16 @@ const SwearJarDetailPage = () => {
     try {
       const response = await api.swearJars.getById(id);
       if (response.success) {
-        setSwearJar(response.data.swearJar);
-        setTransactions(response.data.recentTransactions || []);
+        setSwearJar(response.data);
+        
+        // Load recent transactions for this jar
+        const transactionsResponse = await api.transactions.getAll({ 
+          swearJarId: id, 
+          limit: 10 
+        });
+        if (transactionsResponse.success) {
+          setTransactions(transactionsResponse.data || []);
+        }
       }
     } catch (error) {
       console.error('Error loading swear jar:', error);
@@ -92,11 +102,11 @@ const SwearJarDetailPage = () => {
               <h1 className="text-3xl font-bold text-gray-900">{swearJar.name}</h1>
               <p className="text-gray-600 mt-2">{swearJar.description}</p>
               <div className="flex items-center gap-4 mt-3">
-                <span className={`badge-${swearJar.userRole === 'owner' ? 'primary' : 'gray'}`}>
-                  {swearJar.userRole}
+                <span className={`badge-${swearJar.owner_id === user?.id ? 'primary' : 'gray'}`}>
+                  {swearJar.owner_id === user?.id ? 'owner' : 'member'}
                 </span>
                 <span className="text-sm text-gray-600">
-                  Created {api.formatRelativeTime(swearJar.createdAt)}
+                  Created {api.formatRelativeTime(swearJar.created_at)}
                 </span>
               </div>
             </div>
@@ -133,7 +143,7 @@ const SwearJarDetailPage = () => {
                 <CurrencyDollarIcon className="h-8 w-8 text-primary-600" />
               </div>
               <h2 className="text-4xl font-bold text-gray-900 mb-2">
-                {api.formatCurrency(swearJar.balance, swearJar.currency)}
+                {api.formatCurrency(swearJar.balance || 0, swearJar.currency || 'USD')}
               </h2>
               <p className="text-gray-600">Current Balance</p>
               
@@ -271,7 +281,7 @@ const SwearJarDetailPage = () => {
                   </div>
                 ))}
 
-                {swearJar.userRole === 'owner' && (
+                {swearJar.owner_id === user?.id && (
                   <button className="w-full btn-outline text-sm py-2 mt-4">
                     <PlusIcon className="h-4 w-4 mr-2" />
                     Invite Member
@@ -314,7 +324,7 @@ const SwearJarDetailPage = () => {
                 </div>
               </div>
 
-              {swearJar.userRole === 'owner' && (
+              {swearJar.owner_id === user?.id && (
                 <button className="w-full btn-outline text-sm py-2 mt-4">
                   Manage Settings
                 </button>

@@ -26,45 +26,83 @@ class ApiService {
   swearJars = {
     getAll: async () => {
       try {
-        // Get owned jars
-        const ownedJarsResult = await this.supabase
-          .from('swear_jars')
+        // Get user's accessible jars with membership info
+        const result = await this.supabase
+          .from('swear_jar_members')
           .select(`
-            id,
-            name,
-            description,
-            balance,
-            currency,
-            settings,
-            statistics,
-            created_at,
-            owner:users!owner_id(id, name, email, avatar)
+            role,
+            joined_at,
+            permissions,
+            swear_jars (
+              id,
+              name,
+              description,
+              balance,
+              currency,
+              settings,
+              statistics,
+              created_at,
+              owner:users!owner_id(id, name, email, avatar)
+            )
           `)
-          .order('created_at', { ascending: false });
+          .order('joined_at', { ascending: false });
 
-        if (ownedJarsResult.error) {
-          return this.handleResponse(ownedJarsResult);
+        if (result.error) {
+          // If no memberships found, try to get owned jars directly
+          const ownedJarsResult = await this.supabase
+            .from('swear_jars')
+            .select(`
+              id,
+              name,
+              description,
+              balance,
+              currency,
+              settings,
+              statistics,
+              created_at,
+              owner:users!owner_id(id, name, email, avatar)
+            `)
+            .order('created_at', { ascending: false });
+
+          if (ownedJarsResult.error) {
+            return this.handleResponse(ownedJarsResult);
+          }
+
+          // Transform owned jars
+          const ownedJars = ownedJarsResult.data.map(jar => ({
+            ...jar,
+            role: 'owner',
+            joined_at: jar.created_at,
+            permissions: {
+              canDeposit: true,
+              canWithdraw: true,
+              canInvite: true,
+              canViewTransactions: true
+            }
+          }));
+
+          return {
+            success: true,
+            data: ownedJars
+          };
         }
 
-        // Note: Member jars will be handled by Edge Functions when needed
-
-        // Transform owned jars to include role
-        const ownedJars = ownedJarsResult.data.map(jar => ({
-          ...jar,
-          role: 'owner',
-          joined_at: jar.created_at,
-          permissions: {
-            canDeposit: true,
-            canWithdraw: true,
-            canInvite: true,
+        // Transform member jars
+        const jars = result.data.map(membership => ({
+          ...membership.swear_jars,
+          role: membership.role,
+          joined_at: membership.joined_at,
+          permissions: membership.permissions || {
+            canDeposit: membership.role === 'owner',
+            canWithdraw: membership.role === 'owner',
+            canInvite: membership.role === 'owner',
             canViewTransactions: true
           }
         }));
 
-        // For now, just return owned jars (member jars will be handled by Edge Functions later)
         return {
           success: true,
-          data: ownedJars
+          data: jars
         };
       } catch (error) {
         return {
