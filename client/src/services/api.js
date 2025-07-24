@@ -25,13 +25,11 @@ class ApiService {
   // Swear Jars API
   swearJars = {
     getAll: async () => {
-      const result = await this.supabase
-        .from('swear_jar_members')
-        .select(`
-          role,
-          joined_at,
-          permissions,
-          swear_jars (
+      try {
+        // Get owned jars
+        const ownedJarsResult = await this.supabase
+          .from('swear_jars')
+          .select(`
             id,
             name,
             description,
@@ -41,11 +39,39 @@ class ApiService {
             statistics,
             created_at,
             owner:users!owner_id(id, name, email, avatar)
-          )
-        `)
-        .order('joined_at', { ascending: false });
-      
-      return this.handleResponse(result);
+          `)
+          .order('created_at', { ascending: false });
+
+        if (ownedJarsResult.error) {
+          return this.handleResponse(ownedJarsResult);
+        }
+
+        // Note: Member jars will be handled by Edge Functions when needed
+
+        // Transform owned jars to include role
+        const ownedJars = ownedJarsResult.data.map(jar => ({
+          ...jar,
+          role: 'owner',
+          joined_at: jar.created_at,
+          permissions: {
+            canDeposit: true,
+            canWithdraw: true,
+            canInvite: true,
+            canViewTransactions: true
+          }
+        }));
+
+        // For now, just return owned jars (member jars will be handled by Edge Functions later)
+        return {
+          success: true,
+          data: ownedJars
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error.message
+        };
+      }
     },
 
     getById: async (id) => {

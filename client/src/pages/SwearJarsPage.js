@@ -43,9 +43,8 @@ const SwearJarsPage = () => {
   };
 
   const filteredJars = swearJars.filter(jar => {
-    const jarData = jar.swear_jars || jar; // Handle Supabase structure
-    const matchesSearch = jarData.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         jarData.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = jar.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         jar.description?.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (filter === 'owned') return matchesSearch && jar.role === 'owner';
     if (filter === 'member') return matchesSearch && jar.role === 'member';
@@ -158,25 +157,23 @@ const SwearJarsPage = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            {filteredJars.map((jar, index) => {
-              const jarData = jar.swear_jars || jar;
-              return (
+            {filteredJars.map((jar, index) => (
               <motion.div
-                key={jarData.id}
+                key={jar.id}
                 className="swear-jar-card group"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.1 * index }}
               >
-                <Link to={`/swear-jars/${jarData.id}`} className="block">
+                <Link to={`/swear-jars/${jar.id}`} className="block">
                   {/* Header */}
                                       <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
-                          {jarData.name}
+                          {jar.name}
                         </h3>
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                          {jarData.description || 'No description'}
+                          {jar.description || 'No description'}
                         </p>
                       </div>
                       <div className="ml-4">
@@ -189,7 +186,7 @@ const SwearJarsPage = () => {
                     {/* Balance */}
                     <div className="mb-4">
                       <div className="text-2xl font-bold text-gray-900">
-                        {api.formatCurrency(jarData.balance, jarData.currency)}
+                        {api.formatCurrency(jar.balance, jar.currency)}
                       </div>
                       <div className="text-sm text-gray-600">Current balance</div>
                     </div>
@@ -198,10 +195,10 @@ const SwearJarsPage = () => {
                     <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
                       <div className="flex items-center">
                         <UsersIcon className="h-4 w-4 mr-1" />
-                        {jarData.members?.length || 0} member(s)
+                        {jar.members?.length || 1} member(s)
                       </div>
                       <div className="text-xs">
-                        Created {api.formatRelativeTime(jarData.created_at)}
+                        Created {api.formatRelativeTime(jar.created_at)}
                       </div>
                     </div>
 
@@ -218,8 +215,7 @@ const SwearJarsPage = () => {
                     </div>
                   </Link>
                 </motion.div>
-              );
-            })}
+              ))}
           </motion.div>
         )}
 
@@ -242,10 +238,7 @@ const SwearJarsPage = () => {
             <div className="stats-card">
               <div className="text-center">
                 <div className="text-2xl font-bold text-gray-900">
-                  {api.formatCurrency(filteredJars.reduce((sum, jar) => {
-                    const jarData = jar.swear_jars || jar;
-                    return sum + (jarData.balance || 0);
-                  }, 0))}
+                  {api.formatCurrency(filteredJars.reduce((sum, jar) => sum + (jar.balance || 0), 0))}
                 </div>
                 <div className="text-sm text-gray-600">Total Balance</div>
               </div>
