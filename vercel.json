@@ -9,10 +9,10 @@
       }
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/client/build/$1"
+      "source": "/((?!static|favicon.ico|manifest.json|robots.txt|_next).*)",
+      "destination": "/index.html"
     }
   ]
 } 

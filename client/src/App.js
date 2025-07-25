@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -41,32 +41,22 @@ const pageTransition = {
   duration: 0.3,
 };
 
-function App() {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
+// Separate component to handle animations with location
+const AnimatedRoutes = () => {
+  const location = useLocation();
+  const { user } = useAuth();
+  
   return (
-    <Router>
-      <div className="min-h-screen bg-gray-50">
-        {user && <Navbar />}
-        
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={window.location.pathname}
-            initial="initial"
-            animate="in"
-            exit="out"
-            variants={pageVariants}
-            transition={pageTransition}
-          >
-            <Routes>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial="initial"
+        animate="in"
+        exit="out"
+        variants={pageVariants}
+        transition={pageTransition}
+      >
+        <Routes location={location}>
               {/* Public Routes */}
               <Route 
                 path="/" 
@@ -140,8 +130,27 @@ function App() {
                 </div>
               } />
             </Routes>
-          </motion.div>
-        </AnimatePresence>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  return (
+    <Router>
+      <div className="min-h-screen bg-gray-50">
+        {user && <Navbar />}
+        <AnimatedRoutes />
       </div>
     </Router>
   );
