@@ -8,10 +8,12 @@ import {
   UsersIcon,
   PlusIcon,
   MinusIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import api from '../services/api';
+import toast from 'react-hot-toast';
 
 const SwearJarDetailPage = () => {
   const { id } = useParams();
@@ -44,6 +46,26 @@ const SwearJarDetailPage = () => {
       setIsLoading(false);
     }
   }, [id]);
+
+  const handleDeleteJar = async () => {
+    if (!window.confirm(`Are you sure you want to delete "${swearJar.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await api.swearJars.delete(id);
+      if (response.success) {
+        toast.success('Swear jar deleted successfully');
+        // Navigate back to jars list
+        window.history.back();
+      } else {
+        toast.error(response.error || 'Failed to delete swear jar');
+      }
+    } catch (error) {
+      console.error('Error deleting swear jar:', error);
+      toast.error('Failed to delete swear jar');
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -325,9 +347,18 @@ const SwearJarDetailPage = () => {
               </div>
 
               {swearJar.owner_id === user?.id && (
-                <button className="w-full btn-outline text-sm py-2 mt-4">
-                  Manage Settings
-                </button>
+                <div className="space-y-2 mt-4">
+                  <button className="w-full btn-outline text-sm py-2">
+                    Manage Settings
+                  </button>
+                  <button 
+                    onClick={handleDeleteJar}
+                    className="w-full btn-danger text-sm py-2"
+                  >
+                    <TrashIcon className="h-4 w-4 mr-2" />
+                    Delete Jar
+                  </button>
+                </div>
               )}
             </motion.div>
           </div>

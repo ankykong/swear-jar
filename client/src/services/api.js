@@ -33,7 +33,7 @@ class ApiService {
             role,
             joined_at,
             permissions,
-            swear_jars (
+            swear_jars!inner (
               id,
               name,
               description,
@@ -45,6 +45,7 @@ class ApiService {
               owner:users!owner_id(id, name, email, avatar)
             )
           `)
+          .eq('swear_jars.is_active', true)
           .order('joined_at', { ascending: false });
 
         if (result.error) {
@@ -62,6 +63,7 @@ class ApiService {
               created_at,
               owner:users!owner_id(id, name, email, avatar)
             `)
+            .neq('is_active', false)
             .order('created_at', { ascending: false });
 
           if (ownedJarsResult.error) {
@@ -126,6 +128,7 @@ class ApiService {
           )
         `)
         .eq('id', id)
+        .neq('is_active', false)
         .single();
       
       return this.handleResponse(result);

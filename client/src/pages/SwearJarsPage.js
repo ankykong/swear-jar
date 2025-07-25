@@ -6,11 +6,13 @@ import {
   CurrencyDollarIcon, 
   UsersIcon,
   Cog6ToothIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import CreateSwearJarModal from '../components/UI/CreateSwearJarModal';
 import api from '../services/api';
+import toast from 'react-hot-toast';
 
 const SwearJarsPage = () => {
   const [swearJars, setSwearJars] = useState([]);
@@ -40,6 +42,25 @@ const SwearJarsPage = () => {
   const handleJarCreated = (newJar) => {
     // Add the new jar to the list and reload
     loadSwearJars();
+  };
+
+  const handleDeleteJar = async (jarId, jarName) => {
+    if (!window.confirm(`Are you sure you want to delete "${jarName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await api.swearJars.delete(jarId);
+      if (response.success) {
+        toast.success('Swear jar deleted successfully');
+        loadSwearJars(); // Reload the list
+      } else {
+        toast.error(response.error || 'Failed to delete swear jar');
+      }
+    } catch (error) {
+      console.error('Error deleting swear jar:', error);
+      toast.error('Failed to delete swear jar');
+    }
   };
 
   const filteredJars = swearJars.filter(jar => {
@@ -208,9 +229,22 @@ const SwearJarsPage = () => {
                         Quick Deposit
                       </button>
                       {jar.role === 'owner' && (
-                        <button className="btn-secondary p-2">
-                          <Cog6ToothIcon className="h-4 w-4" />
-                        </button>
+                        <>
+                          <button className="btn-secondary p-2">
+                            <Cog6ToothIcon className="h-4 w-4" />
+                          </button>
+                          <button 
+                            className="btn-danger p-2"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleDeleteJar(jar.id, jar.name);
+                            }}
+                            title="Delete jar"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </Link>
